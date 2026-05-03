@@ -1,19 +1,43 @@
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import express from "express";
+import cors from "cors";
+import axios from "axios";
+import dotenv from "dotenv";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'dist')));
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+app.use(cors());
+app.use(express.json());
+
+// ✅ Test route
+app.get("/", (req, res) => {
+  res.send("Backend is running 🚀");
+});
+
+
+app.get("/api/github", async (req, res) => {
+  try {
+    const username = req.query.username;
+
+    if (!username) {
+      return res.status(400).json({ error: "Username is required" });
+    }
+
+    const response = await axios.get(
+      `https://api.github.com/users/${username}`
+    );
+
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({
+      error: "Failed to fetch GitHub data",
+    });
+  }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
