@@ -1,3 +1,52 @@
+// Create CSV for multiple repos (profile view)
+const createProfileCsvContent = (repoData) => {
+  const rows = [
+    [
+      'Full name',
+      'Description',
+      'URL',
+      'Stars',
+      'Forks',
+      'Open Issues',
+      'Default Branch',
+      'License',
+      'Visibility',
+      'Is Fork',
+      'Tech Stack'
+    ]
+  ];
+  repoData.forEach(({ repo, stack }) => {
+    rows.push([
+      repo.full_name,
+      repo.description || '',
+      repo.html_url,
+      repo.stargazers_count,
+      repo.forks_count,
+      repo.open_issues_count,
+      repo.default_branch,
+      repo.license?.name || 'None',
+      repo.private ? 'Private' : 'Public',
+      repo.fork ? 'Yes' : 'No',
+      stack.join('; ')
+    ]);
+  });
+  return rows
+    .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+};
+
+const downloadProfileCsv = (repoData, username) => {
+  const csv = createProfileCsvContent(repoData);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${username}-repos-info.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 import { useState } from 'react';
 
 const GITHUB_API = 'https://api.github.com';
@@ -29,17 +78,27 @@ const simpleTechStack = (files, languages) => {
   return Array.from(tech).slice(0, 8);
 };
 
-const parseRepoQuery = (query) => {
+// Returns { type: 'repo', value: 'owner/repo' } or { type: 'profile', value: 'owner' } or null
+const parseGitHubQuery = (query) => {
   const trimmed = query.trim();
   if (!trimmed) return null;
 
-  const githubUrl = trimmed.match(/github\.com\/([^\/]+)\/([^\/]+)(?:[\/\?#]|$)/i);
-  if (githubUrl && githubUrl[1] && githubUrl[2]) {
-    return `${githubUrl[1]}/${githubUrl[2]}`;
+  // Match repo URL
+  const repoUrl = trimmed.match(/github\.com\/([^\/]+)\/([^\/]+)(?:[\/?#]|$)/i);
+  if (repoUrl && repoUrl[1] && repoUrl[2]) {
+    return { type: 'repo', value: `${repoUrl[1]}/${repoUrl[2]}` };
   }
 
+  // Match profile URL
+  const profileUrl = trimmed.match(/github\.com\/([^\/]+)(?:[\/?#]|$)/i);
+  if (profileUrl && profileUrl[1]) {
+    return { type: 'profile', value: profileUrl[1] };
+  }
+
+  // Direct owner/repo
   const direct = trimmed.split('/').filter(Boolean);
-  if (direct.length === 2) return `${direct[0]}/${direct[1]}`;
+  if (direct.length === 2) return { type: 'repo', value: `${direct[0]}/${direct[1]}` };
+  if (direct.length === 1) return { type: 'profile', value: direct[0] };
 
   return null;
 };
@@ -112,6 +171,7 @@ export default function App() {
   const [languages, setLanguages] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [profileRepos, setProfileRepos] = useState(null); // [{repo, stack}]
 
   const searchRepo = async (event) => {
     event?.preventDefault();
@@ -120,32 +180,89 @@ export default function App() {
     setFiles([]);
     setLanguages(null);
     setStack([]);
+    setProfileRepos(null);
 
-    const repoSlug = parseRepoQuery(query);
-    if (!repoSlug) {
-      setError('Enter a valid GitHub repository URL or owner/repo identifier.');
+    const parsed = parseGitHubQuery(query);
+    if (!parsed) {
+      setError('Enter a valid GitHub repository/profile URL or owner/repo/owner identifier.');
       return;
     }
 
     setLoading(true);
 
-    try {
-      const repo = await fetchJson(`${GITHUB_API}/repos/${repoSlug}`);
-      const langs = await fetchJson(`${GITHUB_API}/repos/${repoSlug}/languages`);
-      const tree = await fetchJson(`${GITHUB_API}/repos/${repoSlug}/git/trees/${repo.default_branch}?recursive=1`);
-      const allFiles = (tree.tree || [])
-        .filter((entry) => entry.type === 'blob')
-        .map((entry) => entry.path)
-        .slice(0, 120);
+    if (parsed.type === 'repo') {
+      try {
+        const repo = await fetchJson(`${GITHUB_API}/repos/${parsed.value}`);
+        const langs = await fetchJson(`${GITHUB_API}/repos/${parsed.value}/languages`);
+        const tree = await fetchJson(`${GITHUB_API}/repos/${parsed.value}/git/trees/${repo.default_branch}?recursive=1`);
+        const allFiles = (tree.tree || [])
+          .filter((entry) => entry.type === 'blob')
+          .map((entry) => entry.path)
+          .slice(0, 120);
 
-      setResult(repo);
-      setLanguages(langs);
-      setFiles(allFiles);
-      setStack(simpleTechStack(allFiles, langs));
-    } catch (err) {
-      setError(err.message.replace(/\n/g, ' '));
-    } finally {
-      setLoading(false);
+        setResult(repo);
+        setLanguages(langs);
+        setFiles(allFiles);
+        setStack(simpleTechStack(allFiles, langs));
+      } catch (err) {
+        if (err.message && err.message.includes('403')) {
+          setError('GitHub API rate limit exceeded. Please add a GitHub token in your .env as VITE_GITHUB_TOKEN and restart.');
+        } else {
+          setError(err.message.replace(/\n/g, ' '));
+        }
+      } finally {
+        setLoading(false);
+      }
+    } else if (parsed.type === 'profile') {
+      try {
+        // Fetch all repos for the user (handle pagination)
+        let allRepos = [];
+        let page = 1;
+        let fetched = [];
+        do {
+          fetched = await fetchJson(`${GITHUB_API}/users/${parsed.value}/repos?per_page=100&type=owner&sort=updated&page=${page}`);
+          allRepos = allRepos.concat(fetched);
+          page++;
+        } while (fetched.length === 100);
+
+        setProfileRepos([]); // clear first
+
+        // For each repo, fetch its languages and files (limit to 20 for performance)
+        const repoData = await Promise.all(
+          allRepos.slice(0, 20).map(async (repo) => {
+            try {
+              const langs = await fetchJson(`${GITHUB_API}/repos/${repo.full_name}/languages`);
+              let stack = [];
+              try {
+                const tree = await fetchJson(`${GITHUB_API}/repos/${repo.full_name}/git/trees/${repo.default_branch}?recursive=1`);
+                const allFiles = (tree.tree || [])
+                  .filter((entry) => entry.type === 'blob')
+                  .map((entry) => entry.path)
+                  .slice(0, 120);
+                stack = simpleTechStack(allFiles, langs);
+              } catch {
+                stack = simpleTechStack([], langs);
+              }
+              return { repo, stack };
+            } catch {
+              return { repo, stack: [] };
+            }
+          })
+        );
+        // Attach allRepos for accurate counts
+        setProfileRepos({
+          repos: allRepos,
+          repoData
+        });
+      } catch (err) {
+        if (err.message && err.message.includes('403')) {
+          setError('GitHub API rate limit exceeded. Please add a GitHub token in your .env as VITE_GITHUB_TOKEN and restart.');
+        } else {
+          setError(err.message.replace(/\n/g, ' '));
+        }
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -165,18 +282,19 @@ export default function App() {
             className="search-input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Paste a public GitHub repo URL or type owner/repo"
+            placeholder="Paste a public GitHub repo/profile URL or type owner/repo/owner"
           />
           <button className="search-button" type="submit" disabled={!query.trim() || loading}>
             Search
           </button>
         </form>
-        <p className="helper-text">Example: github.com/facebook/react or facebook/react</p>
+        <p className="helper-text">Example: github.com/facebook/react, facebook/react, github.com/facebook</p>
       </div>
 
       {loading && <div className="loading">Loading repository data…</div>}
       {error && <div className="error">{error}</div>}
 
+      {/* Repo result */}
       {result && (
         <div className="results">
           <div className="result-header">
@@ -238,6 +356,49 @@ export default function App() {
               <div className="file-item">No files available for this repository.</div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Profile result */}
+      {profileRepos && profileRepos.repos && profileRepos.repoData && (
+        <div className="results">
+          <div className="section-title">
+            Total repositories: {profileRepos.repos.length}
+            {' | '}Forked repositories: {profileRepos.repos.filter(r => r.fork).length}
+            {' | '}Original repositories: {profileRepos.repos.filter(r => !r.fork).length}
+          </div>
+          <button
+            className="download-button"
+            type="button"
+            style={{ marginBottom: '1rem' }}
+            onClick={() => downloadProfileCsv(profileRepos.repoData, profileRepos.repos[0]?.owner?.login || 'user')}
+          >
+            Download CSV (all shown repos)
+          </button>
+          {profileRepos.repos.length === 0 && <div>No repositories found for this user.</div>}
+          {profileRepos.repoData.map(({ repo, stack }) => (
+            <div key={repo.id} className="profile-repo-card">
+              <div className="repo-name">{repo.full_name} {repo.fork && <span className="badge">Fork</span>}</div>
+              <div className="repo-description">{repo.description || 'No description available.'}</div>
+              <div className="badge-row">
+                <span className="badge">Stars: {repo.stargazers_count.toLocaleString()}</span>
+                <span className="badge">Forks: {repo.forks_count.toLocaleString()}</span>
+                <span className="badge">Visibility: {repo.private ? 'Private' : 'Public'}</span>
+              </div>
+              <div className="stack-row">
+                {stack.length > 0 ? (
+                  stack.map((item) => (
+                    <span key={item} className="stack-chip">{item}</span>
+                  ))
+                ) : (
+                  <span className="stack-chip">No tech stack detected.</span>
+                )}
+              </div>
+            </div>
+          ))}
+          {profileRepos.repos.length > 20 && (
+            <div className="helper-text">Showing tech stack for first 20 repos. Only counts above are complete.</div>
+          )}
         </div>
       )}
     </div>
