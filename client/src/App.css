@@ -1,0 +1,193 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, system-ui, sans-serif;
+  background: #f2f2f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4rem 1rem 2rem;
+}
+
+.logo {
+  font-size: clamp(2rem, 3.5vw, 4rem);
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #202124;
+  letter-spacing: -0.04em;
+}
+
+.search-box {
+  width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.search-form {
+  display: flex;
+  width: 100%;
+}
+
+.search-input {
+  flex: 1;
+  height: 56px;
+  padding: 0 1.2rem;
+  border: 1px solid #dfe1e5;
+  border-radius: 999px 0 0 999px;
+  outline: none;
+  font-size: 1rem;
+  background: #fff;
+}
+
+.search-input:focus {
+  border-color: #4285f4;
+  box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.3);
+}
+
+.search-button {
+  width: 130px;
+  border: none;
+  border-radius: 0 999px 999px 0;
+  background: #1a73e8;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.helper-text {
+  color: #5f6368;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.results {
+  width: min(860px, 100%);
+  margin-top: 2rem;
+  padding: 1.75rem;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.repo-name {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.repo-description {
+  color: #5f6368;
+  margin: 0.5rem 0 0;
+}
+
+.badge-row,
+.meta-row,
+.stack-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  align-items: center;
+}
+
+.download-button {
+  border: none;
+  border-radius: 999px;
+  background: #34a853;
+  color: white;
+  padding: 0.8rem 1.3rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.download-button:hover {
+  background: #2c8c45;
+}
+
+.download-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.badge,
+.stack-chip,
+.file-chip {
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  background: #f1f3f4;
+  color: #202124;
+  font-size: 0.9rem;
+}
+
+.stack-label {
+  font-weight: 700;
+}
+
+.section-title {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.75rem;
+}
+
+.file-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.file-item {
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #f8f9fa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.95rem;
+}
+
+.error {
+  margin-top: 1.5rem;
+  color: #c5221f;
+  text-align: center;
+}
+
+.loading {
+  margin-top: 1.5rem;
+  text-align: center;
+  color: #3c4043;
+}
+
+@media (max-width: 640px) {
+  .search-input {
+    font-size: 0.95rem;
+  }
+
+  .search-button {
+    width: 100px;
+  }
+}
