@@ -9,7 +9,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 
-app.use(cors());
+app.use(cors({
+  origin: "http://github-info-ashy.vercel.app/"
+}));
 app.use(express.json());
 
 // ✅ Test route

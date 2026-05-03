@@ -49,6 +49,10 @@ const downloadProfileCsv = (repoData, username) => {
 };
 import { useState } from 'react';
 
+const API = import.meta.env.VITE_API_URL;
+
+fetch(`${API}/api/github?username=${username}`)
+
 const GITHUB_API = 'https://api.github.com';
 
 const simpleTechStack = (files, languages) => {
