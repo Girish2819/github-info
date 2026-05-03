@@ -1,4 +1,3 @@
-// Create CSV for multiple repos (profile view)
 const createProfileCsvContent = (repoData) => {
   const rows = [
     [
@@ -82,24 +81,22 @@ const simpleTechStack = (files, languages) => {
   return Array.from(tech).slice(0, 8);
 };
 
-// Returns { type: 'repo', value: 'owner/repo' } or { type: 'profile', value: 'owner' } or null
 const parseGitHubQuery = (query) => {
   const trimmed = query.trim();
   if (!trimmed) return null;
 
-  // Match repo URL
+  // match repo url
   const repoUrl = trimmed.match(/github\.com\/([^\/]+)\/([^\/]+)(?:[\/?#]|$)/i);
   if (repoUrl && repoUrl[1] && repoUrl[2]) {
     return { type: 'repo', value: `${repoUrl[1]}/${repoUrl[2]}` };
   }
 
-  // Match profile URL
+  // match profile url
   const profileUrl = trimmed.match(/github\.com\/([^\/]+)(?:[\/?#]|$)/i);
   if (profileUrl && profileUrl[1]) {
     return { type: 'profile', value: profileUrl[1] };
   }
 
-  // Direct owner/repo
   const direct = trimmed.split('/').filter(Boolean);
   if (direct.length === 2) return { type: 'repo', value: `${direct[0]}/${direct[1]}` };
   if (direct.length === 1) return { type: 'profile', value: direct[0] };
@@ -175,7 +172,7 @@ export default function App() {
   const [languages, setLanguages] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [profileRepos, setProfileRepos] = useState(null); // [{repo, stack}]
+  const [profileRepos, setProfileRepos] = useState(null);
 
   const searchRepo = async (event) => {
     event?.preventDefault();
@@ -219,7 +216,6 @@ export default function App() {
       }
     } else if (parsed.type === 'profile') {
       try {
-        // Fetch all repos for the user (handle pagination)
         let allRepos = [];
         let page = 1;
         let fetched = [];
@@ -229,9 +225,8 @@ export default function App() {
           page++;
         } while (fetched.length === 100);
 
-        setProfileRepos([]); // clear first
+        setProfileRepos([]);
 
-        // For each repo, fetch its languages and files (limit to 20 for performance)
         const repoData = await Promise.all(
           allRepos.slice(0, 20).map(async (repo) => {
             try {
@@ -253,7 +248,7 @@ export default function App() {
             }
           })
         );
-        // Attach allRepos for accurate counts
+
         setProfileRepos({
           repos: allRepos,
           repoData
